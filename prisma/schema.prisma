@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // Price History Model
@@ -41,22 +40,25 @@ model Currency {
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
-  // Relations
-  priceHistory PriceHistory[]
-}generator client {
-  provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-}
+// On-Chain Confirmed Price Model
+// Stores prices confirmed on Stellar via manageData or Soroban contract events
+model OnChainPrice {
+  id            Int       @id @default(autoincrement())
+  currency      String    @db.VarChar(10)    // e.g., "NGN", "KES", "GHS"
+  rate          Decimal   @db.Decimal(20, 10) // The confirmed price
+  txHash        String    @db.VarChar(64)    // Stellar transaction hash
+  memoId        String?   @db.VarChar(28)    // Memo ID from transaction (e.g., SF-NGN-1234567890-001)
+  ledgerSeq     Int                          // Ledger sequence number
+  confirmedAt   DateTime  @db.Timestamp(3)   // When the transaction was confirmed on-chain
 
-model PriceRecord {
-  id        Int      @id @default(autoincrement())
-  currency  String
-  value     Float
-  timestamp DateTime
+  @@index([currency, confirmedAt])
+  @@index([txHash])
+  @@index([ledgerSeq])
+  @@unique([txHash, currency])
+
+  createdAt     DateTime  @default(now())
 }
 
 // Provider Reputation Model
@@ -70,7 +72,7 @@ model ProviderReputation {
   successfulRequests Int    @default(0)       // Successful responses
   failedRequests  Int       @default(0)       // Failed responses
   incorrectResponses Int   @default(0)        // Responses with invalid/incorrect data
-  averageLatency  Float?    @db.Float         // Average response time in ms
+  averageLatency  Float?    @db.DoublePrecision // Average response time in ms
   lastSuccess     DateTime?                    // Last successful response timestamp
   lastFailure     DateTime?                    // Last failed response timestamp
   lastIncorrect   DateTime?                    // Last incorrect response timestamp
@@ -78,7 +80,7 @@ model ProviderReputation {
   consecutiveIncorrect Int @default(0)        // Current streak of consecutive incorrect responses
   
   // Reliability metrics
-  reliabilityScore Float?   @db.Float         // Calculated score (0-100)
+  reliabilityScore Float?   @db.DoublePrecision // Calculated score (0-100)
   lastUpdated     DateTime  @updatedAt
   
   createdAt       DateTime  @default(now())
