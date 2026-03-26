@@ -7,13 +7,16 @@ import {
 import { KESRateFetcher } from "./kesFetcher";
 import { GHSRateFetcher } from "./ghsFetcher";
 import { NGNRateFetcher } from "./ngnFetcher";
+import { StellarService } from "../stellarService";
 
 export class MarketRateService {
   private fetchers: Map<string, MarketRateFetcher> = new Map();
   private cache: Map<string, { rate: MarketRate; expiry: Date }> = new Map();
+  private stellarService: StellarService;
   private readonly CACHE_DURATION_MS = 30000; // 30 seconds
 
   constructor() {
+    this.stellarService = new StellarService();
     this.initializeFetchers();
   }
 
@@ -48,6 +51,14 @@ export class MarketRateService {
 
       // Fetch fresh rate
       const rate = await fetcher.fetchRate();
+
+      // Submit price update to Stellar with a unique memo ID
+      try {
+        const memoId = this.stellarService.generateMemoId(currency.toUpperCase());
+        await this.stellarService.submitPriceUpdate(currency.toUpperCase(), rate.rate, memoId);
+      } catch (stellarError) {
+        console.error("Failed to submit price update to Stellar network:", stellarError);
+      }
 
       // Update cache
       this.cache.set(currency.toUpperCase(), {
