@@ -5,6 +5,7 @@ import {
   RateSource,
   RateFetchError,
   calculateMedian,
+  filterOutliers,
 } from "./types";
 
 /**
@@ -405,8 +406,9 @@ export class KESRateFetcher implements MarketRateFetcher {
       return null;
     }
 
-    // Calculate median rate from all sources
-    const rateValues = prices.map((p) => p.rate);
+    // Calculate median rate from all sources (with outlier filtering)
+    let rateValues = prices.map((p) => p.rate).filter(p => p > 0);
+    rateValues = filterOutliers(rateValues);
     const medianRate = calculateMedian(rateValues);
 
     // Return the median with the most recent timestamp
@@ -420,7 +422,7 @@ export class KESRateFetcher implements MarketRateFetcher {
       currency: "KES",
       rate: medianRate,
       timestamp: mostRecentTimestamp,
-      source: `Binance (Median of ${prices.length} sources)`,
+      source: `Binance (Median of ${prices.length} sources, outliers filtered)`,
     };
   }
 
