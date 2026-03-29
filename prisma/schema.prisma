@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
+
 model PriceHistory {
   id          Int       @id @default(autoincrement())
   currency    String    @db.VarChar(10)

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 export class ReputationService {
   async recordSuccess(providerName: string, endpoint: string | null, latencyMs?: number): Promise<void> {
