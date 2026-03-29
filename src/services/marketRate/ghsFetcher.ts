@@ -38,14 +38,17 @@ export class GHSRateFetcher implements MarketRateFetcher {
 
     // Strategy 1: Try CoinGecko direct GHS price
     try {
-      const coinGeckoResponse = await axios.get<CoinGeckoPriceResponse>(
-        this.coinGeckoUrl,
-        {
-          timeout: 10000,
-          headers: {
-            "User-Agent": "StellarFlow-Oracle/1.0",
+      const coinGeckoResponse = await withRetry(
+        () => axios.get<CoinGeckoPriceResponse>(
+          this.coinGeckoUrl,
+          {
+            timeout: 10000,
+            headers: {
+              "User-Agent": "StellarFlow-Oracle/1.0",
+            },
           },
-        },
+        ),
+        { maxRetries: 3, retryDelay: 1000 }
       );
 
       const stellarPrice = coinGeckoResponse.data.stellar;
@@ -74,14 +77,17 @@ export class GHSRateFetcher implements MarketRateFetcher {
 
     // Strategy 2: CoinGecko XLM/USD + ExchangeRate API
     try {
-      const coinGeckoResponse = await axios.get<CoinGeckoPriceResponse>(
-        this.coinGeckoUrl,
-        {
-          timeout: 10000,
-          headers: {
-            "User-Agent": "StellarFlow-Oracle/1.0",
+      const coinGeckoResponse = await withRetry(
+        () => axios.get<CoinGeckoPriceResponse>(
+          this.coinGeckoUrl,
+          {
+            timeout: 10000,
+            headers: {
+              "User-Agent": "StellarFlow-Oracle/1.0",
+            },
           },
-        },
+        ),
+        { maxRetries: 3, retryDelay: 1000 }
       );
 
       const stellarPrice = coinGeckoResponse.data.stellar;
@@ -90,14 +96,17 @@ export class GHSRateFetcher implements MarketRateFetcher {
         typeof stellarPrice.usd === "number" &&
         stellarPrice.usd > 0
       ) {
-        const exchangeRateResponse = await axios.get<ExchangeRateApiResponse>(
-          this.usdToGhsUrl,
-          {
-            timeout: 10000,
-            headers: {
-              "User-Agent": "StellarFlow-Oracle/1.0",
+        const exchangeRateResponse = await withRetry(
+          () => axios.get<ExchangeRateApiResponse>(
+            this.usdToGhsUrl,
+            {
+              timeout: 10000,
+              headers: {
+                "User-Agent": "StellarFlow-Oracle/1.0",
+              },
             },
-          },
+          ),
+          { maxRetries: 3, retryDelay: 1000 }
         );
 
       if (typeof stellarPrice.usd !== 'number') {

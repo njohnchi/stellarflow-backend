@@ -12,6 +12,7 @@ import { multiSigService } from "../multiSigService";
 import { getIO } from "../../lib/socket";
 import prisma from "../../lib/prisma";
 import dotenv from "dotenv";
+import { normalizeDateToUTC } from "../../utils/timeUtils";
 
 dotenv.config();
 
@@ -21,17 +22,22 @@ import { priceReviewService } from "../priceReviewService";
 export class MarketRateService {
   private fetchers: Map<string, MarketRateFetcher> = new Map();
   private cache: Map<string, { rate: MarketRate; expiry: Date }> = new Map();
+  private latestPricesCache: {
+    response: AggregatedFetcherResponse;
+    expiry: Date;
+  } | null = null;
   private stellarService: StellarService;
   private readonly CACHE_DURATION_MS = 30000; // 30 seconds
+  private readonly LATEST_PRICES_CACHE_DURATION_MS = 10000; // 10 seconds
   private multiSigEnabled: boolean;
   private remoteOracleServers: string[] = [];
 
   constructor() {
     this.stellarService = new StellarService();
-    
+
     // Check if multi-sig is enabled
     this.multiSigEnabled = process.env.MULTI_SIG_ENABLED === "true";
-    
+
     // Parse remote oracle server URLs
     const remoteServersEnv = process.env.REMOTE_ORACLE_SERVERS || "";
     if (remoteServersEnv) {
@@ -118,9 +124,16 @@ export class MarketRateService {
               : "Unknown fetcher error",
         };
       }
-      const reviewAssessment = await priceReviewService.assessRate(rate);
-      const enrichedRate: MarketRate = {
+      const normalizedRate: MarketRate = {
         ...rate,
+        timestamp: normalizeDateToUTC(rate.timestamp),
+        comparisonTimestamp: rate.comparisonTimestamp
+          ? normalizeDateToUTC(rate.comparisonTimestamp)
+          : undefined,
+      };
+      const reviewAssessment = await priceReviewService.assessRate(normalizedRate);
+      const enrichedRate: MarketRate = {
+        ...normalizedRate,
         manualReviewRequired: reviewAssessment.manualReviewRequired,
         reviewId: reviewAssessment.reviewRecordId,
         contractSubmissionSkipped: reviewAssessment.manualReviewRequired,
@@ -221,20 +234,21 @@ export class MarketRateService {
 
       // Persist to price history for sparkline charts
       try {
+        const normalizedTimestamp = normalizeDateToUTC(enrichedRate.timestamp);
         await prisma.priceHistory.upsert({
           where: {
             currency_source_timestamp: {
               currency: currency.toUpperCase(),
-              source: rate.source,
-              timestamp: rate.timestamp,
+              source: enrichedRate.source,
+              timestamp: normalizedTimestamp,
             },
           },
           update: {},
           create: {
             currency: currency.toUpperCase(),
-            rate: rate.rate,
-            source: rate.source,
-            timestamp: rate.timestamp,
+            rate: enrichedRate.rate,
+            source: enrichedRate.source,
+            timestamp: normalizedTimestamp,
           },
         });
       } catch (dbError) {
@@ -297,6 +311,11 @@ export class MarketRateService {
   }
 
   async getLatestPrices(): Promise<AggregatedFetcherResponse> {
+    const cachedLatestPrices = this.latestPricesCache;
+    if (cachedLatestPrices && cachedLatestPrices.expiry > new Date()) {
+      return cachedLatestPrices.response;
+    }
+
     const results = await this.getAllRates();
 
     const successfulRates = results
@@ -311,16 +330,26 @@ export class MarketRateService {
     const allSuccessful =
       successfulRates.length > 0 && errorMessages.length === 0;
 
-    return {
+    const response = {
       success: allSuccessful,
       data: successfulRates,
       ...(errorMessages.length > 0 && { error: errorMessages[0] }),
       ...(errorMessages.length > 0 && { errors: errorMessages }),
     };
+
+    if (response.success) {
+      this.latestPricesCache = {
+        response,
+        expiry: new Date(Date.now() + this.LATEST_PRICES_CACHE_DURATION_MS),
+      };
+    }
+
+    return response;
   }
 
   clearCache(): void {
     this.cache.clear();
+    this.latestPricesCache = null;
   }
 
   async getPendingReviews() {

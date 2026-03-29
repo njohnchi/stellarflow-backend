@@ -17,7 +17,6 @@ declare enum CircuitState {
  */
 export declare class KESRateFetcher implements MarketRateFetcher {
     private readonly circuitBreaker;
-    private readonly retryConfig;
     constructor();
     /**
      * Get the currency code this fetcher handles

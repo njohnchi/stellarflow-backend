@@ -10,12 +10,12 @@ export class GHSRateFetcher {
         const prices = [];
         // Strategy 1: Try CoinGecko direct GHS price
         try {
-            const coinGeckoResponse = await axios.get(this.coinGeckoUrl, {
+            const coinGeckoResponse = await withRetry(() => axios.get(this.coinGeckoUrl, {
                 timeout: 10000,
                 headers: {
                     "User-Agent": "StellarFlow-Oracle/1.0",
                 },
-            });
+            }), { maxRetries: 3, retryDelay: 1000 });
             const stellarPrice = coinGeckoResponse.data.stellar;
             if (!stellarPrice) {
                 throw new Error('CoinGecko did not return a Stellar price payload');
@@ -40,17 +40,17 @@ export class GHSRateFetcher {
                 headers: {
                     "User-Agent": "StellarFlow-Oracle/1.0",
                 },
-            });
+            }), { maxRetries: 3, retryDelay: 1000 });
             const stellarPrice = coinGeckoResponse.data.stellar;
             if (stellarPrice &&
                 typeof stellarPrice.usd === "number" &&
                 stellarPrice.usd > 0) {
-                const exchangeRateResponse = await axios.get(this.usdToGhsUrl, {
+                const exchangeRateResponse = await withRetry(() => axios.get(this.usdToGhsUrl, {
                     timeout: 10000,
                     headers: {
                         "User-Agent": "StellarFlow-Oracle/1.0",
                     },
-                });
+                }), { maxRetries: 3, retryDelay: 1000 });
                 const usdToGhsRate = exchangeRateResponse.data.rates?.GHS;
                 if (exchangeRateResponse.data.result === "success" &&
                     typeof usdToGhsRate === "number" &&
@@ -78,7 +78,7 @@ export class GHSRateFetcher {
         // Strategy 3: Try alternative XLM pricing source
         try {
             const alternativeUrl = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
-            const altResponse = await axios.get(alternativeUrl, {
+            const altResponse = await withRetry(() => axios.get(alternativeUrl, {
                 timeout: 10000,
                 headers: {
                     "User-Agent": "StellarFlow-Oracle/1.0",

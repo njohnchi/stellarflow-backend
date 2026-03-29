@@ -1,4 +1,4 @@
-import { Keypair, TransactionBuilder, Operation, Networks, Memo, Horizon, } from "@stellar/stellar-sdk";
+import { Keypair, TransactionBuilder, Operation, Networks, Memo, Horizon, xdr, } from "@stellar/stellar-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 export class StellarService {
@@ -143,13 +143,12 @@ export class StellarService {
                         const signerKeypair = Keypair.fromPublicKey(sig.signerPublicKey);
                         // Get the signature hint
                         const hint = signerKeypair.signatureHint();
-                        // Get the current envelope
-                        const envelope = transaction.toEnvelope();
-                        // Add the signature to the envelope
-                        envelope.signature().push(signatureBuffer);
-                        // Add the hint to the hints (Stellar tracks which keys signed)
-                        // Note: This is a simplified approach; in production,
-                        // you might want to use a library that properly handles multi-sig
+                        // Add the signature to the transaction
+                        const decoratedSignature = new xdr.DecoratedSignature({
+                            hint: signerKeypair.signatureHint(),
+                            signature: signatureBuffer,
+                        });
+                        transaction.signatures.push(decoratedSignature);
                     }
                     catch (error) {
                         console.error(`[StellarService] Failed to add signature for ${sig.signerPublicKey}:`, error);
